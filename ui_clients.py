@@ -10,7 +10,12 @@ TONE_OPTIONS = ["дружелюбный", "экспертный", "дерзки�
 def _tone_widget(key_prefix: str, current_value: str = "") -> str:
     """Отрисовывает выбор tone of voice (селект + поле для своего варианта). Возвращает значение."""
     options = TONE_OPTIONS
-    default_index = options.index(current_value) if current_value in options[:-1] else len(options) - 1
+    if current_value in options[:-1]:
+        default_index = options.index(current_value)
+    elif current_value:
+        default_index = len(options) - 1
+    else:
+        default_index = 0
     choice = st.selectbox("Tone of voice*", options, index=default_index, key=f"{key_prefix}_tone_select")
     if choice == "другое (указать вручную)":
         default_custom = current_value if current_value not in options[:-1] else ""
