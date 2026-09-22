@@ -1,17 +1,21 @@
-"""Генерация готового текста поста под tone of voice клиента через Claude API."""
+"""Тексты постов (подпись, хэштеги, призыв к действию) под tone of voice клиента: генерация
+через Claude API, ручное редактирование, хранение списка постов в JSON, привязанном к клиенту."""
 
 import argparse
 
 from clients import get_client
 from common import DEFAULT_MODEL, get_client as get_anthropic_client
+from storage import add_item, delete_item, load_items, update_item
+
+KIND = "posts"
 
 POST_TEXT_PROMPT = """\
 Ты — опытный копирайтер для соцсетей. Напиши готовый текст поста для следующего клиента:
 
 - Имя/бренд: {name}
-- Ниша: {niche}
-- Описание бизнеса: {description}
+- Описание бизнеса и ниши: {description}
 - Tone of voice: {tone_of_voice}
+- Что клиент хочет получить от контента: {goals}
 
 Тема поста: {topic}
 Формат поста: {format}
@@ -33,35 +37,22 @@ POST_TEXT_PROMPT = """\
 """
 
 
-def generate_post_text(
+def generate_post_text_content(
     topic: str,
     post_format: str,
-    client_id: str | None = None,
-    tone_of_voice: str | None = None,
-    name: str = "",
-    niche: str = "",
-    description: str = "",
+    client_id: str,
     model: str = DEFAULT_MODEL,
 ) -> str:
-    """Генерирует текст поста. Можно передать client_id (данные подтянутся автоматически)
-    либо указать tone_of_voice и остальные поля вручную."""
-    if client_id:
-        client = get_client(client_id)
-        if not client:
-            raise ValueError(f"Клиент с id={client_id} не найден.")
-        name = client["name"]
-        niche = client["niche"]
-        description = client["description"]
-        tone_of_voice = client["tone_of_voice"]
-
-    if not tone_of_voice:
-        raise ValueError("Нужно указать либо client_id, либо tone_of_voice вручную.")
+    """Генерирует текст поста (без сохранения)."""
+    client = get_client(client_id)
+    if not client:
+        raise ValueError(f"Клиент с id={client_id} не найден.")
 
     prompt = POST_TEXT_PROMPT.format(
-        name=name or "не указано",
-        niche=niche or "не указана",
-        description=description or "не указано",
-        tone_of_voice=tone_of_voice,
+        name=client["name"],
+        description=client["description"],
+        tone_of_voice=client["tone_of_voice"],
+        goals=client.get("goals", ""),
         topic=topic,
         format=post_format,
     )
@@ -75,21 +66,37 @@ def generate_post_text(
     return "".join(block.text for block in message.content if block.type == "text")
 
 
+def generate_and_save_post(client_id: str, topic: str, post_format: str) -> dict:
+    """Генерирует текст поста и сохраняет его в список постов клиента."""
+    content = generate_post_text_content(topic, post_format, client_id)
+    return add_item(KIND, client_id, {"topic": topic, "format": post_format, "content": content})
+
+
+def list_posts(client_id: str) -> list[dict]:
+    """Возвращает список сохранённых постов клиента (новые сверху)."""
+    items = load_items(KIND, client_id)
+    return sorted(items, key=lambda i: i.get("created_at", ""), reverse=True)
+
+
+def update_post_item(client_id: str, item_id: str, **fields) -> dict | None:
+    """Обновляет сохранённый пост (например, после ручного редактирования текста)."""
+    return update_item(KIND, client_id, item_id, **fields)
+
+
+def delete_post_item(client_id: str, item_id: str) -> bool:
+    """Удаляет сохранённый пост."""
+    return delete_item(KIND, client_id, item_id)
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Генерация текста поста под tone of voice клиента")
+    parser = argparse.ArgumentParser(description="Генерация текста поста для клиента")
+    parser.add_argument("client_id", help="ID клиента (см. data/clients.json)")
     parser.add_argument("topic", help="Тема поста")
     parser.add_argument("--format", default="статичный пост", help="Формат поста")
-    parser.add_argument("--client-id", default=None, help="ID клиента (см. data/clients.json)")
-    parser.add_argument("--tone", default=None, help="Tone of voice, если клиент не указан")
     args = parser.parse_args()
 
-    text = generate_post_text(
-        topic=args.topic,
-        post_format=args.format,
-        client_id=args.client_id,
-        tone_of_voice=args.tone,
-    )
-    print(text)
+    item = generate_and_save_post(args.client_id, args.topic, args.format)
+    print(item["content"])
 
 
 if __name__ == "__main__":

@@ -5,3 +5,7 @@ venv/
 *.mp4
 .streamlit/secrets.toml
 data/clients.json
+data/content_plans/
+data/reels_scripts/
+data/posts/
+data/ads/

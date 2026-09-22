@@ -1,4 +1,5 @@
-"""Хранение и управление клиентами SMM-инструмента (простое JSON-хранилище на диске)."""
+"""Хранение и управление клиентами SaaS-приложения (простое JSON-хранилище на диске,
+один файл на всех клиентов)."""
 
 import uuid
 from pathlib import Path
@@ -6,6 +7,9 @@ from pathlib import Path
 from common import load_json, save_json
 
 CLIENTS_PATH = "data/clients.json"
+
+# Виды сущностей, привязанных к клиенту — используются при каскадном удалении клиента.
+CLIENT_DATA_KINDS = ["content_plans", "reels_scripts", "posts", "ads"]
 
 
 def _ensure_storage(path: str = CLIENTS_PATH) -> None:
@@ -31,23 +35,29 @@ def get_client(client_id: str, path: str = CLIENTS_PATH) -> dict | None:
 
 def add_client(
     name: str,
-    niche: str,
+    social_link: str,
     description: str,
     tone_of_voice: str,
-    social_links: str,
+    goals: str,
     path: str = CLIENTS_PATH,
 ) -> dict:
-    """Добавляет нового клиента и сохраняет хранилище на диск. Возвращает добавленного клиента."""
+    """Добавляет нового клиента и сохраняет хранилище на диск. Возвращает добавленного клиента.
+
+    social_link — ссылка на соцсеть клиента, сохраняется как есть, без автоматического
+    разбора/парсинга — используется только для справки.
+    description — краткое описание бизнеса и ниши.
+    goals — произвольный текст: что клиент/пользователь хочет получить от контента.
+    """
     _ensure_storage(path)
     data = load_json(path)
 
     client = {
         "id": str(uuid.uuid4()),
         "name": name,
-        "niche": niche,
+        "social_link": social_link,
         "description": description,
         "tone_of_voice": tone_of_voice,
-        "social_links": social_links,
+        "goals": goals,
     }
 
     data.setdefault("clients", []).append(client)
@@ -69,7 +79,8 @@ def update_client(client_id: str, path: str = CLIENTS_PATH, **fields) -> dict | 
 
 
 def delete_client(client_id: str, path: str = CLIENTS_PATH) -> bool:
-    """Удаляет клиента по id. Возвращает True, если клиент был найден и удалён."""
+    """Удаляет клиента по id вместе со всеми привязанными к нему данными
+    (контент-планы, сценарии, посты, реклама). Возвращает True, если клиент был найден."""
     _ensure_storage(path)
     data = load_json(path)
 
@@ -80,4 +91,8 @@ def delete_client(client_id: str, path: str = CLIENTS_PATH) -> bool:
 
     data["clients"] = new_clients
     save_json(data, path)
+
+    from storage import delete_all_for_client
+    delete_all_for_client(client_id, CLIENT_DATA_KINDS)
+
     return True
