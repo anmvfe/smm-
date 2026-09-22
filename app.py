@@ -1,6 +1,5 @@
 """Streamlit-интерфейс: загрузка референса и клипов, сборка видео по образцу монтажа."""
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -10,6 +9,7 @@ from dotenv import load_dotenv
 from analyze_clips import analyze_clips
 from analyze_reference import analyze_reference
 from assemble_video import assemble_video
+from common import get_api_key
 from match_scenes import match_scenes
 
 load_dotenv()
@@ -22,11 +22,11 @@ st.write(
     "и соберёт готовое видео."
 )
 
-if not os.environ.get("ANTHROPIC_API_KEY"):
+if not get_api_key():
     st.warning(
-        "Не найдена переменная окружения ANTHROPIC_API_KEY. "
-        "Добавьте ключ Claude API в файл .env или в переменные окружения перед запуском "
-        "(см. README.md)."
+        "Не найден ключ ANTHROPIC_API_KEY. Локально: добавьте его в файл .env или в "
+        "переменные окружения. На Streamlit Community Cloud: добавьте его в "
+        "Settings → Secrets (см. README.md)."
     )
 
 reference_file = st.file_uploader("Видео-референс (образец монтажа)", type=["mp4", "mov", "m4v"])

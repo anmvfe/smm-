@@ -13,13 +13,27 @@ import anthropic
 DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 
 
+def get_api_key() -> str | None:
+    """Ищет ключ Claude API: сначала в st.secrets (Streamlit Cloud), затем в переменных окружения."""
+    try:
+        import streamlit as st
+        if "ANTHROPIC_API_KEY" in st.secrets:
+            return st.secrets["ANTHROPIC_API_KEY"]
+    except Exception:
+        # Streamlit не установлен, secrets.toml отсутствует, или вызов вне Streamlit — это нормально
+        pass
+
+    return os.environ.get("ANTHROPIC_API_KEY")
+
+
 def get_client() -> anthropic.Anthropic:
-    """Создаёт клиент Claude API, используя ключ из переменной окружения ANTHROPIC_API_KEY."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    """Создаёт клиент Claude API, используя ключ из st.secrets или переменной окружения ANTHROPIC_API_KEY."""
+    api_key = get_api_key()
     if not api_key:
         raise RuntimeError(
-            "Не найден ключ ANTHROPIC_API_KEY. Установите переменную окружения "
-            "или создайте файл .env с этим ключом (см. README.md)."
+            "Не найден ключ ANTHROPIC_API_KEY. Локально: установите переменную окружения "
+            "или создайте файл .env с этим ключом. На Streamlit Community Cloud: добавьте "
+            "его в Settings → Secrets (см. README.md)."
         )
     return anthropic.Anthropic(api_key=api_key)
 
